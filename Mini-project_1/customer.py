@@ -96,7 +96,7 @@ def add_to_cart(conn, cid, pid):
     else:
         execute_query(conn, "INSERT INTO cart(cid, sessionNo, pid, qty) VALUES (?, 1, ?, ?)",
                       (cid, pid, qty))
-    print("✅ Added to cart.")
+    print("Added to cart.")
 
 
 def view_cart(conn, cid):
