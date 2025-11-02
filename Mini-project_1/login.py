@@ -53,7 +53,7 @@ def register():
 
     print(f"Registration successful! Your user ID is {new_uid}")
 
-
+//////
 def generate_new_id(table, column, prefix="X"):
     """Generate a new ID with prefix and 3-digit number (e.g., U001)."""
     res = execute_query(f"SELECT {column} FROM {table}")
