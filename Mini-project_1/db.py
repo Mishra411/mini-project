@@ -1,11 +1,22 @@
 import sqlite3
 
-DB_FILE = "ecommerce.db"
+DB_FILE = None
 
-def setup_database():
-    """Create tables for users, customers, products, orders, etc."""
+def set_db_file(file_path):
+    global DB_FILE
+    DB_FILE = file_path
+
+
+def get_connection():
+    if not DB_FILE:
+        raise ValueError("Database wrong")
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
+    return conn
+
+
+def setup_database():
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.executescript('''
@@ -41,7 +52,7 @@ def setup_database():
         );
 
         CREATE TABLE orders (
-            ono TEXT PRIMARY KEY,
+            ono INTEGER PRIMARY KEY AUTOINCREMENT,
             cid TEXT NOT NULL,
             sessionNo TEXT,
             odate TEXT,
@@ -50,7 +61,7 @@ def setup_database():
         );
 
         CREATE TABLE orderlines (
-            ono TEXT,
+            ono INTEGER,
             lineNo INTEGER,
             pid TEXT,
             qty INTEGER,
@@ -95,28 +106,34 @@ def setup_database():
             FOREIGN KEY (pid) REFERENCES products(pid)
         );
     ''')
+
     conn.commit()
     conn.close()
 
 
-def execute_query(sql, params=()):
-    """Execute a SELECT query and return results as dictionaries."""
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+def execute_query(conn, sql, params=(), fetch=False, fetchone=False):
+    """
+    Execute SQL safely using an existing connection.
+    Use fetch=True for multiple rows, fetchone=True for a single row.
+    """
     cursor = conn.cursor()
     cursor.execute(sql, params)
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+
+    if fetchone:
+        return cursor.fetchone()
+    elif fetch:
+        return cursor.fetchall()
+    else:
+        conn.commit()
+        return None
 
 
-def execute_command(sql, params=()):
-    """Execute INSERT/UPDATE/DELETE safely and return lastrowid."""
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
+def execute_command(conn, sql, params=()):
+    """
+    Execute INSERT/UPDATE/DELETE using an existing connection.
+    Returns last inserted row ID.
+    """
     cursor = conn.cursor()
     cursor.execute(sql, params)
     conn.commit()
-    last_id = cursor.lastrowid
-    conn.close()
-    return last_id
+    return cursor.lastrowid

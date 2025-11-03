@@ -1,4 +1,4 @@
-from utilities import execute_query, get_connection
+from db import get_connection, execute_query, execute_command
 from datetime import datetime, timedelta
 
 
@@ -13,6 +13,7 @@ def sales_menu(user):
         print("4. Logout")
 
         choice = input("Select an option: ").strip()
+
         if choice == "1":
             update_product(conn)
         elif choice == "2":
@@ -23,41 +24,65 @@ def sales_menu(user):
             print("Logging out...\n")
             break
         else:
-            print(" Invalid choice. Try again.")
+            print("Invalid choice. Try again.")
+
+    conn.close()
 
 
 def update_product(conn):
     pid = input("Enter product ID: ").strip()
-    product = execute_query(conn, "SELECT * FROM products WHERE pid=?", (pid,), fetchone=True)
+    product = execute_query(conn,
+                            "SELECT * FROM products WHERE pid=?",
+                            (pid,),
+                            fetchone=True)
     if not product:
         print("Invalid product ID.")
         return
 
     print(f"Current price: {product['price']}, stock: {product['stock_count']}")
+
     new_price = input("Enter new price (blank to skip): ").strip()
     new_stock = input("Enter new stock count (blank to skip): ").strip()
 
     if new_price:
-        execute_query(conn, "UPDATE products SET price=? WHERE pid=?", (float(new_price), pid))
+        execute_command(conn,
+                        "UPDATE products SET price=? WHERE pid=?",
+                        (float(new_price), pid))
     if new_stock:
-        execute_query(conn, "UPDATE products SET stock_count=? WHERE pid=?", (int(new_stock), pid))
-    print(" Product updated.")
+        execute_command(conn,
+                        "UPDATE products SET stock_count=? WHERE pid=?",
+                        (int(new_stock), pid))
+
+    print("Product updated.")
 
 
 def weekly_sales_report(conn):
     since = datetime.now() - timedelta(days=7)
     print(f"\n--- Weekly Sales Report (Since {since.date()}) ---")
 
-    stats = execute_query(conn, """
-        SELECT COUNT(DISTINCT o.ono) AS total_orders,
-               COUNT(DISTINCT ol.pid) AS products_sold,
-               COUNT(DISTINCT o.cid) AS unique_customers,
-               AVG(ol.qty * ol.uprice) AS avg_spent,
-               SUM(ol.qty * ol.uprice) AS total_sales
-        FROM orders o
-        JOIN orderlines ol ON o.ono = ol.ono
-        WHERE o.odate >= ?
-    """, (since,), fetchone=True)
+    stats = execute_query(
+                            conn,
+                            """
+                            SELECT 
+                                COUNT(DISTINCT o.ono) AS total_orders,
+                                COUNT(DISTINCT ol.pid) AS products_sold,
+                                COUNT(DISTINCT o.cid) AS unique_customers,
+                                AVG(customer_total) AS avg_spent,
+                                SUM(ol.qty * ol.uprice) AS total_sales
+                            FROM orders o
+                            JOIN orderlines ol ON o.ono = ol.ono
+                            JOIN (
+                                SELECT o.cid, SUM(ol.qty * ol.uprice) AS customer_total
+                                FROM orders o
+                                JOIN orderlines ol ON o.ono = ol.ono
+                                WHERE o.odate >= ?
+                                GROUP BY o.cid
+                            ) AS customer_totals ON customer_totals.cid = o.cid
+                            WHERE o.odate >= ?;
+                            """,
+                            (since, since),  # ✅ tuple with two elements
+                            fetchone=True
+                        )
 
     if not stats or stats["total_orders"] == 0:
         print("No sales in this period.")
@@ -72,22 +97,50 @@ def weekly_sales_report(conn):
 
 def top_selling_products(conn):
     print("\n--- Top Selling Products ---")
-    top_orders = execute_query(conn, """
+    # --- Top by Orders ---
+    rows = execute_query(conn, """
         SELECT p.name, COUNT(DISTINCT ol.ono) AS order_count
-        FROM orderlines ol JOIN products p ON ol.pid = p.pid
+        FROM orderlines ol
+        JOIN products p ON ol.pid = p.pid
         GROUP BY p.pid
-        ORDER BY order_count DESC LIMIT 3
+        ORDER BY order_count DESC
     """, fetch=True)
+
     print("By Orders:")
-    for row in top_orders:
-        print(f"{row['name']} - {row['order_count']} orders")
+    if not rows:
+        print("No orders yet.")
+        return
+
+    # Find the third-highest order count
+    counts = [row['order_count'] for row in rows]
+    third_count = counts[2] if len(counts) >= 3 else counts[-1]
+
+    for row in rows:
+        if row['order_count'] >= third_count:
+            print(f"{row['name']} - {row['order_count']} orders")
+        else:
+            break
+
+    # --- Top by Views ---
+    rows = execute_query(conn, """
+        SELECT p.name, COUNT(v.pid) AS views
+        FROM viewedProduct v
+        JOIN products p ON v.pid = p.pid
+        GROUP BY p.pid
+        ORDER BY views DESC
+    """, fetch=True)
 
     print("\nBy Views:")
-    top_views = execute_query(conn, """
-        SELECT p.name, COUNT(v.pid) AS views
-        FROM viewedProduct v JOIN products p ON v.pid = p.pid
-        GROUP BY p.pid
-        ORDER BY views DESC LIMIT 3
-    """, fetch=True)
-    for row in top_views:
-        print(f"{row['name']} - {row['views']} views")
+    if not rows:
+        print("No views yet.")
+        return
+
+    # Find the third-highest view count
+    counts = [row['views'] for row in rows]
+    third_count = counts[2] if len(counts) >= 3 else counts[-1]
+
+    for row in rows:
+        if row['views'] >= third_count:
+            print(f"{row['name']} - {row['views']} views")
+        else:
+            break
