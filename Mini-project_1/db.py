@@ -6,7 +6,7 @@ def set_db_file(file_path):
     global DB_FILE
     DB_FILE = file_path
 
-
+# Connects to the SQLite database and sets up row access by column name.
 def get_connection():
     if not DB_FILE:
         raise ValueError("Error: No database file set. Call set_db_file() first.")
@@ -15,11 +15,8 @@ def get_connection():
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
+# Runs a SELECT query safely and returns results depending on fetch mode.
 def execute_query(conn, sql, params=(), fetch=False, fetchone=False):
-    """
-    Execute SQL safely using an existing connection.
-    Use fetch=True for multiple rows, fetchone=True for a single row.
-    """
     cursor = conn.cursor()
     try:
         cursor.execute(sql, params)
@@ -35,12 +32,8 @@ def execute_query(conn, sql, params=(), fetch=False, fetchone=False):
         conn.rollback()
         return None
 
-
+# Executes INSERT, UPDATE, or DELETE commands and commits changes.
 def execute_command(conn, sql, params=()):
-    """
-    Execute INSERT/UPDATE/DELETE using an existing connection.
-    Returns last inserted row ID.
-    """
     cursor = conn.cursor()
     try:
         cursor.execute(sql, params)
@@ -49,8 +42,8 @@ def execute_command(conn, sql, params=()):
         print("An error occurred:", e)
         conn.rollback()
     
+# Utility to check if a given SQL statement is complete (mainly for debugging)
 def is_complete_sql(text):
-    """Return True if text forms a complete SQL statement (lecture example)."""
     return sqlite3.complete_statement(text)
 
 def close(conn):
