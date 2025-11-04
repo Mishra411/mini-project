@@ -266,6 +266,7 @@ def checkout(conn, cid, session_no, total):
 
     execute_command(conn, "DELETE FROM cart WHERE cid=? AND sessionNo=?", (cid, session_no))
     print("Order placed successfully!")
+    conn.commit()
 
 
 # ------------------- View Orders -------------------
