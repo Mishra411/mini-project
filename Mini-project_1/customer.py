@@ -194,33 +194,89 @@ def add_to_cart(conn, cid, session_no, pid):
 
 
 def view_cart(conn, cid, session_no):
-    rows = execute_query(
-        conn,
-        """
-        SELECT c.pid, p.name, p.price, c.qty, (p.price * c.qty) AS total
-        FROM cart c JOIN products p ON c.pid = p.pid
-        WHERE c.cid=? AND c.sessionNo=?
-        """,
-        (cid, session_no),
-        fetch=True
-    )
+    while True:
+        rows = execute_query(
+            conn,
+            """
+            SELECT c.pid, p.name, p.price, c.qty, (p.price * c.qty) AS total, p.stock_count
+            FROM cart c JOIN products p ON c.pid = p.pid
+            WHERE c.cid=? AND c.sessionNo=?
+            """,
+            (cid, session_no),
+            fetch=True
+        )
 
-    if not rows:
-        print("Your cart is empty.")
-        return
+        if not rows:
+            print("Your cart is empty.")
+            return
 
-    total = 0
-    print("\n--- Your Cart ---")
-    for row in rows:
-        r = dict(row)
-        total += r["total"]
-        print(f"{r['pid']} - {r['name']} | {r['qty']} x ${r['price']} = ${r['total']:.2f}")
+        total = 0
+        print("\n--- Your Cart ---")
+        for row in rows:
+            r = dict(row)
+            total += r["total"]
+            print(f"{r['pid']} - {r['name']} | {r['qty']} x ${r['price']} = ${r['total']:.2f}")
 
-    print(f"Total: ${total:.2f}")
-    choice = input("\nProceed to checkout? (y/n): ").strip().lower()
-    if choice == "y":
-        checkout(conn, cid, session_no, total)
+        print(f"Total: ${total:.2f}")
 
+        print("\nOptions:")
+        print("1. Update Quantity")
+        print("2. Remove Product")
+        print("3. Proceed to Checkout")
+        print("4. Go Back")
+        choice = input("Select an option: ").strip()
+
+        if choice == "1":
+            pid = input("Enter Product ID to update: ").strip()
+            product = None
+            for r in rows:
+                if str(r["pid"]) == pid:
+                    product = r
+                    break
+
+            if not product:
+                print("Invalid Product ID.")
+                continue
+
+            try:
+                new_qty = int(input("Enter new quantity: ").strip())
+            except ValueError:
+                print("Invalid quantity.")
+                continue
+
+            if new_qty <= 0:
+                print("Quantity must be greater than 0.")
+                continue
+            if new_qty > product["stock_count"]:
+                print(f"Only {product['stock_count']} units available in stock.")
+                continue
+
+            execute_command(
+                conn,
+                "UPDATE cart SET qty=? WHERE cid=? AND sessionNo=? AND pid=?",
+                (new_qty, cid, session_no, pid)
+            )
+            print("Quantity updated successfully.")
+
+        elif choice == "2":
+            pid = input("Enter Product ID to remove: ").strip()
+            execute_command(
+                conn,
+                "DELETE FROM cart WHERE cid=? AND sessionNo=? AND pid=?",
+                (cid, session_no, pid)
+            )
+            print("Product removed from cart.")
+
+        elif choice == "3":
+            confirm = input(f"Proceed to checkout for ${total:.2f}? (y/n): ").strip().lower()
+            if confirm == "y":
+                checkout(conn, cid, session_no, total)
+            break
+
+        elif choice == "4":
+            break
+        else:
+            print("Invalid choice. Please enter valid.")
 
 # ------------------- Checkout -------------------
 def generate_new_order_no(conn):
