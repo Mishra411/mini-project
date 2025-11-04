@@ -1,6 +1,7 @@
 from db import get_connection, execute_query, execute_command, close
 from datetime import datetime
 
+# Main customer menu showing available options
 def customer_menu(user):
     conn = get_connection()
     cid = user["uid"]
@@ -69,14 +70,13 @@ def get_session_no(conn, cid):
     return new_session_no
 
 
-
+# To search products and present them in pages
 def search_products(conn, cid, session_no):
     keyword = input("\nEnter keyword to search: ").strip().lower()
     if not keyword:
         print("Keyword cannot be empty.")
         return
 
-    # Record the search
     execute_command(
         conn,
         "INSERT INTO search(cid, sessionNo, ts, query) VALUES (?, ?, ?, ?)",
@@ -147,7 +147,6 @@ def view_product(conn, cid, session_no, pid):
     print(f"Stock: {product['stock_count']}")
     print(f"Description: {product['descr']}")
 
-    # Record view
     execute_command(
         conn,
         "INSERT INTO viewedProduct(cid, sessionNo, ts, pid) VALUES (?, ?, ?, ?)",
@@ -159,8 +158,7 @@ def view_product(conn, cid, session_no, pid):
         add_to_cart(conn, cid, session_no, pid)
 
 
-
-
+# Add a selected product to the customer’s active shopping cart
 def add_to_cart(conn, cid, session_no, pid):
     product_check = execute_query(conn, "SELECT stock_count FROM products WHERE pid=?", (pid,), fetchone=True)
     if not product_check:
@@ -200,9 +198,7 @@ def add_to_cart(conn, cid, session_no, pid):
         )
     print("Added to cart.")
 
-
-
-
+# Display all items in the current shopping cart and totals.
 def view_cart(conn, cid, session_no):
     while True:
         rows = execute_query(
@@ -306,7 +302,7 @@ def generate_new_order_no(conn):
     new_order_no = max_ono + 1
     return new_order_no
 
-
+# Complete the purchase by creating order and orderlines records
 def checkout(conn, cid, session_no, total):
     address = input("Enter shipping address: ").strip()
     if not address:
@@ -367,8 +363,7 @@ def checkout(conn, cid, session_no, total):
 
     print(f"Order #{ono} placed successfully!")
 
-
-
+# Lists all previous orders placed by the logged-in customer.
 def view_orders(conn, cid):
     page = 0
     while True:
