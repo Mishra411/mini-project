@@ -1,19 +1,14 @@
-"""
-login.py
-Handles user login and registration.
-"""
-
 import hashlib
 from db import get_connection, execute_query, execute_command, close
 import getpass
 
+#Lab example: using hashlib to create a SHA-256 password hash
 def hash_password(password):
-    #Lab example: using hashlib to create a SHA-256 password hash
     alg = hashlib.sha256()
     alg.update(password.encode("utf-8"))
     return alg.hexdigest()
 
-
+# Validates user credentials and returns the matching user record.
 def login():
     try:
         uid = int(input("Enter user ID (integer): ").strip())
@@ -60,15 +55,15 @@ def login():
 
     return dict(result[0])
 
+# Handles new user registration and stores credentials in the database.
 def register():
-    print("\n=== New Customer Registration ===")
+    print("\n New Customer Registration ")
     name = input("Full name: ").strip()
     email = input("Email: ").strip()
     pwd = getpass.getpass("Password: ")
 
     conn = get_connection()
 
-    # Check if email already exists
     exists = execute_query(conn, "SELECT * FROM customers WHERE email = ?", (email,), fetch=True)
     if exists:
         print("Email already registered.")
