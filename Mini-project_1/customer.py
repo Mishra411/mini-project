@@ -223,11 +223,17 @@ def view_cart(conn, cid, session_no):
         total = 0
         print("\n--- Your Cart ---")
         for row in rows:
-            r = dict(row)
-            total += r["total"]
-            print(f"{r['pid']} - {r['name']} | {r['qty']} x ${r['price']} = ${r['total']:.2f}")
+            pid = row["pid"]
+            name = row["name"]
+            price = row["price"]
+            qty = row["qty"]
+            item_total = row["total"]
 
-        print(f"Total: ${total:.2f}")
+            total = total + item_total
+            print(pid, "-", name, "|", qty, "x $", price, "=", "$", round(item_total, 2))
+
+        print("Total: $", round(total, 2))
+
 
         print("\nOptions:")
         print("1. Update Quantity")
@@ -289,12 +295,16 @@ def view_cart(conn, cid, session_no):
             print("Invalid choice. Please enter valid.")
 
 
-# ------------------- Checkout -------------------
 def generate_new_order_no(conn):
-    """Generate a new unique order number."""
     row = execute_query(conn, "SELECT MAX(ono) AS max_ono FROM orders", fetchone=True)
-    max_ono = row["max_ono"] if row and row["max_ono"] else 5000  # start from 5001 if no orders
-    return max_ono + 1
+
+    if row is not None and row["max_ono"] is not None:
+        max_ono = row["max_ono"]
+    else:
+        max_ono = 5000
+
+    new_order_no = max_ono + 1
+    return new_order_no
 
 
 def checkout(conn, cid, session_no, total):
@@ -307,7 +317,6 @@ def checkout(conn, cid, session_no, total):
     if confirm != "y":
         return
 
-    # Generate unique order number manually
     ono = generate_new_order_no(conn)
 
     # Insert into orders table
@@ -330,9 +339,13 @@ def checkout(conn, cid, session_no, total):
 
     line_no = 1
     for item in items:
-        pid, qty = item["pid"], item["qty"]
+        pid = item["pid"]
+        qty = item["qty"]
         price_row = execute_query(conn, "SELECT price FROM products WHERE pid=?", (pid,), fetchone=True)
-        price = price_row["price"] if price_row else 0
+        if price_row is not None:
+            price = price_row["price"]
+        else:
+            price = 0
 
         # Insert into orderlines
         execute_command(
@@ -350,14 +363,12 @@ def checkout(conn, cid, session_no, total):
 
         line_no += 1
 
-    # Clear cart
     execute_command(conn, "DELETE FROM cart WHERE cid=? AND sessionNo=?", (cid, session_no))
 
     print(f"Order #{ono} placed successfully!")
 
 
 
-# ------------------- View Orders -------------------
 def view_orders(conn, cid):
     page = 0
     while True:
@@ -415,9 +426,10 @@ def view_orders(conn, cid):
                 view_order_detail(conn, cid, int(nav))
             else:
                 print("Invalid option. Try again.")
+
+
             
 def view_order_detail(conn, cid, ono):
-    """Display detailed breakdown of a single order."""
     order = execute_query(
         conn,
         """
@@ -461,6 +473,7 @@ def view_order_detail(conn, cid, ono):
     print(f"\n→ Grand Total: ${grand_total:.2f}")
 
     input("\nPress Enter to return to orders list...")
+
 
 
 def close_session(conn, cid, session_no):
