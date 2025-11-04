@@ -1,19 +1,19 @@
 import sys
 import os
-from db import set_db_file, setup_database
+from db import set_db_file
 from login import login, register
 from customer import customer_menu
 from sales import sales_menu
 
 def main():
-    db_file = "ecommerce.db"
+    db_file = "mp.db"
     if len(sys.argv) > 1:
         db_file = sys.argv[1]
 
     set_db_file(db_file)
 
-    if not os.path.exists(db_file):
-        setup_database()
+    #if not os.path.exists(db_file):
+        #setup_database()
 
     print("=== Welcome to the E-Commerce System ===")
 

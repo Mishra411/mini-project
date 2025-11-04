@@ -147,7 +147,7 @@ def add_to_cart(conn, cid, session_no, pid):
     stock = stock_row["stock_count"] if stock_row else 0
 
     if qty <= 0 or qty > stock:
-        print("Invalid quantity.")
+        print("Quantity unavailable")
         return
 
     existing = execute_query(

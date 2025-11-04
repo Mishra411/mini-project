@@ -10,29 +10,51 @@ def hash_password(password):
 
 
 def login():
-    """Login a user by verifying password hash."""
-    uid = input("Enter user ID: ").strip()
-    pwd = getpass.getpass("Password: ")
+    """Login a user by verifying password hash or legacy plaintext."""
+    try:
+        uid = int(input("Enter user ID (integer): ").strip())
+    except ValueError:
+        print("User ID must be an integer.")
+        return None
 
+    pwd = getpass.getpass("Password: ")
     hashed = hash_password(pwd)
 
-    conn = get_connection()  
+    conn = get_connection()
 
-    result= execute_query(
+    # Try login with hashed password first
+    result = execute_query(
         conn,
         "SELECT * FROM users WHERE uid = ? AND pwd = ?",
         (uid, hashed),
         fetch=True
     )
 
-    conn.close()  
+    # If not found, try legacy plaintext match
+    if not result:
+        result = execute_query(
+            conn,
+            "SELECT * FROM users WHERE uid = ? AND pwd = ?",
+            (uid, pwd),
+            fetch=True
+        )
+
+        # If found, upgrade their password to hashed
+        if result:
+            execute_command(
+                conn,
+                "UPDATE users SET pwd = ? WHERE uid = ?",
+                (hashed, uid)
+            )
+            print("(Your password has been securely updated.)")
+
+    conn.close()
 
     if not result:
         print("Invalid user ID or password.")
         return None
 
     return dict(result[0])
-
 
 def register():
     """Register a new customer with hashed password."""
@@ -41,16 +63,17 @@ def register():
     email = input("Email: ").strip()
     pwd = getpass.getpass("Password: ")
 
-    conn = get_connection()  
+    conn = get_connection()
 
+    # Check if email already exists
     exists = execute_query(conn, "SELECT * FROM customers WHERE email = ?", (email,), fetch=True)
     if exists:
         print("Email already registered.")
         conn.close()
         return
 
-    new_uid = generate_new_id(conn, "users", "uid", "U")
-    new_cid = generate_new_id(conn, "customers", "cid", "C")
+    new_uid = generate_new_id(conn, "users", "uid")
+    new_cid = generate_new_id(conn, "customers", "cid")
 
     hashed = hash_password(pwd)
 
@@ -59,27 +82,13 @@ def register():
     execute_command(conn, "INSERT INTO customers(cid, name, email) VALUES (?, ?, ?)",
                     (new_cid, name, email))
 
-    conn.close()  
+    conn.close()
 
     print(f"Registration successful! Your user ID is {new_uid}")
 
 
-def generate_new_id(conn, table, column, prefix="X"):
-    """Generate a new ID with prefix and 3-digit number (e.g., U001)."""
-    # Get all existing IDs from the table
-    result = execute_query(conn, f"SELECT {column} FROM {table}", fetch=True)
-    # Extract numeric parts of IDs that start with the prefix
-    existing = []
-    for r in result:
-        if r[column].startswith(prefix):
-            num_part = r[column][len(prefix):]
-            existing.append(int(num_part))
-    # Find the maximum number or use 0 if none exist
-    if existing:
-        max_num = max(existing)
-    else:
-        max_num = 0
-    # Return new ID with prefix and 3 digits
-    new_id = f"{prefix}{max_num + 1:03d}"
-    return new_id
-
+def generate_new_id(conn, table, column):
+    """Generate a new integer ID by finding the max existing ID and adding 1."""
+    result = execute_query(conn, f"SELECT MAX({column}) AS max_id FROM {table}", fetch=True)
+    max_id = result[0]["max_id"] if result and result[0]["max_id"] is not None else 0
+    return max_id + 1
