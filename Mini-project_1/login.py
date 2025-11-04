@@ -15,7 +15,6 @@ def hash_password(password):
 
 
 def login():
-    # Login a user by verifying password hash.
     try:
         uid = int(input("Enter user ID (integer): ").strip())
     except ValueError:
@@ -62,7 +61,6 @@ def login():
     return dict(result[0])
 
 def register():
-    """Register a new customer with hashed password."""
     print("\n=== New Customer Registration ===")
     name = input("Full name: ").strip()
     email = input("Email: ").strip()
@@ -93,7 +91,9 @@ def register():
 
 
 def generate_new_id(conn, table, column):
-    """Generate a new integer ID by finding the max existing ID and adding 1."""
     result = execute_query(conn, f"SELECT MAX({column}) AS max_id FROM {table}", fetch=True)
-    max_id = result[0]["max_id"] if result and result[0]["max_id"] is not None else 0
+    if result is not None and len(result) > 0 and result[0]["max_id"] is not None:
+        max_id = result[0]["max_id"]
+    else:
+        max_id = 0
     return max_id + 1
