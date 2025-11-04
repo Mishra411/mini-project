@@ -1,7 +1,7 @@
 from db import get_connection, execute_query, execute_command, close
 from datetime import datetime, timedelta
 
-
+# Menu for salesperson to view/update products and access sales reports
 def sales_menu(user):
     conn = get_connection()
     print(f"\nWelcome, Salesperson {user['uid']}")
@@ -28,7 +28,7 @@ def sales_menu(user):
 
     close(conn)
 
-
+# Let salesperson update price or stock details of an existing product
 def update_product(conn):
     pid = input("Enter product ID: ").strip()
     product = execute_query(conn,
@@ -58,7 +58,7 @@ def update_product(conn):
 
     print("Product information updated successfully.")
 
-
+# Summarize weekly sales totals, orders, and customer activity
 def weekly_sales_report(conn):
     since = datetime.now() - timedelta(days=7)
     since_str = since.strftime("%Y-%m-%d")
@@ -98,10 +98,9 @@ def weekly_sales_report(conn):
     print(f"Average Amount per Customer: ${stats['avg_spent']:.2f}")
     print(f"Total Sales: ${stats['total_sales']:.2f}")
 
-
+# Shows top-ranked products based on orders and product views
 def top_selling_products(conn):
     print("\nTop Selling Products")
-    # --- Top by Orders ---
     print("\nBy Orders:")
     rows = execute_query(conn, """
         SELECT p.name, COUNT(DISTINCT ol.ono) AS order_count
@@ -121,7 +120,6 @@ def top_selling_products(conn):
         if row['order_count'] >= third_count:
             print(f"{row['name']} - {row['order_count']} orders")
 
-    # --- Top by Views ---
     print("\nBy Views:")
     rows = execute_query(conn, """
         SELECT p.name, COUNT(v.pid) AS views
