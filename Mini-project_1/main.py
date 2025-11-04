@@ -5,8 +5,9 @@ from login import login, register
 from customer import customer_menu
 from sales import sales_menu
 
+# Displays the main menu and routes users to login or registration.
 def main():
-    db_file = "madcadfvadf.db"
+    db_file = "prj.db"
     if len(sys.argv) > 1:
         db_file = sys.argv[1]
 
