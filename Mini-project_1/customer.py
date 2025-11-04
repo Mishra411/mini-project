@@ -22,6 +22,7 @@ def customer_menu(user):
         elif choice == "3":
             view_orders(conn, cid)
         elif choice == "4":
+            close_session(conn, cid, session_no)
             print("Logging out...\n")
             break
         else:
@@ -31,7 +32,6 @@ def customer_menu(user):
 
 
 def get_session_no(conn, cid):
-    """Reuse today's session if it exists, otherwise create a new one."""
     row = execute_query(
         conn,
         """
@@ -65,7 +65,6 @@ def get_session_no(conn, cid):
 
 
 
-
 def search_products(conn, cid, session_no):
     keyword = input("\nEnter keyword to search: ").strip().lower()
     if not keyword:
@@ -78,7 +77,7 @@ def search_products(conn, cid, session_no):
         "INSERT INTO search(cid, sessionNo, ts, query) VALUES (?, ?, ?, ?)",
         (cid, session_no, datetime.now(), keyword)
     )
-
+    conn.commit()
     page = 0
     while True:
         rows = execute_query(
@@ -189,6 +188,7 @@ def add_to_cart(conn, cid, session_no, pid):
             (cid, session_no, pid, qty)
         )
     print("Added to cart.")
+    conn.commit()
 
 
 
@@ -223,6 +223,13 @@ def view_cart(conn, cid, session_no):
 
 
 # ------------------- Checkout -------------------
+def generate_new_order_no(conn):
+    """Generate a new unique order number."""
+    row = execute_query(conn, "SELECT MAX(ono) AS max_ono FROM orders", fetchone=True)
+    max_ono = row["max_ono"] if row and row["max_ono"] else 5000  # start from 5001 if no orders
+    return max_ono + 1
+
+
 def checkout(conn, cid, session_no, total):
     address = input("Enter shipping address: ").strip()
     if not address:
@@ -233,13 +240,17 @@ def checkout(conn, cid, session_no, total):
     if confirm != "y":
         return
 
+    # Generate unique order number manually
+    ono = generate_new_order_no(conn)
+
+    # Insert into orders table
     execute_command(
         conn,
-        "INSERT INTO orders(cid, sessionNo, odate, shipping_address) VALUES (?, ?, ?, ?)",
-        (cid, session_no, datetime.now(), address)
+        "INSERT INTO orders(ono, cid, sessionNo, odate, shipping_address) VALUES (?, ?, ?, ?, ?)",
+        (ono, cid, session_no, datetime.now(), address)
     )
-    ono = execute_query(conn, "SELECT last_insert_rowid() AS id", fetchone=True)["id"]
 
+    # Get items from cart
     items = execute_query(
         conn,
         "SELECT pid, qty FROM cart WHERE cid=? AND sessionNo=?",
@@ -250,23 +261,30 @@ def checkout(conn, cid, session_no, total):
     line_no = 1
     for item in items:
         pid, qty = item["pid"], item["qty"]
-        price = execute_query(conn, "SELECT price FROM products WHERE pid=?", (pid,), fetchone=True)["price"]
+        price_row = execute_query(conn, "SELECT price FROM products WHERE pid=?", (pid,), fetchone=True)
+        price = price_row["price"] if price_row else 0
 
+        # Insert into orderlines
         execute_command(
             conn,
             "INSERT INTO orderlines(ono, lineNo, pid, qty, uprice) VALUES (?, ?, ?, ?, ?)",
             (ono, line_no, pid, qty, price)
         )
+
+        # Update product stock
         execute_command(
             conn,
             "UPDATE products SET stock_count = stock_count - ? WHERE pid=?",
             (qty, pid)
         )
+
         line_no += 1
 
+    # Clear cart
     execute_command(conn, "DELETE FROM cart WHERE cid=? AND sessionNo=?", (cid, session_no))
-    print("Order placed successfully!")
-    conn.commit()
+
+    print(f"Order #{ono} placed successfully!")
+
 
 
 # ------------------- View Orders -------------------
@@ -311,3 +329,11 @@ def view_orders(conn, cid):
             page -= 1
         elif nav == "q":
             break
+
+def close_session(conn, cid, session_no):
+    """Set end_time of a session when customer logs out."""
+    execute_command(
+        conn,
+        "UPDATE sessions SET end_time=? WHERE cid=? AND sessionNo=?",
+        (datetime.now(), cid, session_no)
+    )
