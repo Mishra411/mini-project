@@ -31,20 +31,38 @@ def customer_menu(user):
 
 
 def get_session_no(conn, cid):
+    """Reuse today's session if it exists, otherwise create a new one."""
     row = execute_query(
+        conn,
+        """
+        SELECT sessionNo 
+        FROM sessions 
+        WHERE cid=? AND DATE(start_time)=DATE('now')
+        ORDER BY sessionNo DESC 
+        LIMIT 1
+        """,
+        (cid,),
+        fetchone=True
+    )
+    if row:  
+        return row["sessionNo"]
+    last_row = execute_query(
         conn,
         "SELECT MAX(sessionNo) AS last_session FROM sessions WHERE cid=?",
         (cid,),
         fetchone=True
     )
-    last = row["last_session"] if row and row["last_session"] else 0
-    session_no = last + 1
+    last = last_row["last_session"] if last_row and last_row["last_session"] else 0
+    new_session_no = last + 1
+
     execute_command(
         conn,
         "INSERT INTO sessions(cid, sessionNo, start_time) VALUES (?, ?, ?)",
-        (cid, session_no, datetime.now())
+        (cid, new_session_no, datetime.now())
     )
-    return session_no
+
+    return new_session_no
+
 
 
 
